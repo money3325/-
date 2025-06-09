@@ -1,0 +1,82 @@
+
+% 3. 敏感性分析(充电需求增长率±20%波动)
+fprintf('\n===== 敏感性分析(充电需求增长率波动) =====\n');
+% 提取充电需求增长率列
+growth_rate = X(:, 5);
+
+% +20%波动
+growth_rate_plus = growth_rate * 1.2;
+X_plus = X;
+X_plus(:, 5) = growth_rate_plus;
+
+% -20%波动
+growth_rate_minus = growth_rate * 0.8;
+X_minus = X;
+X_minus(:, 5) = growth_rate_minus;
+
+% 敏感性分析代码(内联实现，避免函数定义问题)
+% +20%波动计算
+V_plus = zeros(m, n);
+for j = 1:n
+    x = X_plus(:, j);
+    if type(j) == 1
+        V_plus(:, j) = (x - min(x)) / (max(x) - min(x));
+    else
+        V_plus(:, j) = 1 - (x - min(x)) / (max(x) - min(x));
+    end
+end
+Z_plus_matrix = V_plus * diag(w);
+Z_plus_ideal = max(Z_plus_matrix);
+Z_minus_ideal = min(Z_plus_matrix);
+D_plus_plus = sqrt(sum((Z_plus_matrix - repmat(Z_plus_ideal, m, 1)).^2, 2));
+D_minus_plus = sqrt(sum((Z_plus_matrix - repmat(Z_minus_ideal, m, 1)).^2, 2));
+C_plus = D_minus_plus ./ (D_plus_plus + D_minus_plus);
+[~, idx_plus] = sort(C_plus, 'descend');
+ranking_plus = zeros(m, 1);
+for i = 1:m
+    ranking_plus(idx_plus(i)) = i;
+end
+
+% -20%波动计算
+V_minus = zeros(m, n);
+for j = 1:n
+    x = X_minus(:, j);
+    if type(j) == 1
+        V_minus(:, j) = (x - min(x)) / (max(x) - min(x));
+    else
+        V_minus(:, j) = 1 - (x - min(x)) / (max(x) - min(x));
+    end
+end
+Z_minus_matrix = V_minus * diag(w);
+Z_plus_ideal_minus = max(Z_minus_matrix);
+Z_minus_ideal_minus = min(Z_minus_matrix);
+D_plus_minus = sqrt(sum((Z_minus_matrix - repmat(Z_plus_ideal_minus, m, 1)).^2, 2));
+D_minus_minus = sqrt(sum((Z_minus_matrix - repmat(Z_minus_ideal_minus, m, 1)).^2, 2));
+C_minus = D_minus_minus ./ (D_plus_minus + D_minus_minus);
+[~, idx_minus] = sort(C_minus, 'descend');
+ranking_minus = zeros(m, 1);
+for i = 1:m
+    ranking_minus(idx_minus(i)) = i;
+end
+
+% 输出敏感性分析结果
+fprintf('\n充电需求增长率+20%波动结果:\n');
+fprintf('地点\tC_i(+20%%)\t排序(+20%%)\t原始排序\n');
+for i = 1:m
+    fprintf('%s\t%.4f\t\t%d\t\t\t%d\n', locations{i}, C_plus(i), ranking_plus(i), ranking(i));
+end
+
+fprintf('\n充电需求增长率-20%波动结果:\n');
+fprintf('地点\tC_i(-20%%)\t排序(-20%%)\t原始排序\n');
+for i = 1:m
+    fprintf('%s\t%.4f\t\t%d\t\t\t%d\n', locations{i}, C_minus(i), ranking_minus(i), ranking(i));
+end
+
+% 计算排序变化情况
+change_count = sum(ranking_plus ~= ranking) + sum(ranking_minus ~= ranking);
+fprintf('\n排序稳定性分析: 波动前后排序变化数 = %d (共%d个方案)\n', change_count, m*2);
+if change_count == 0
+    fprintf('结论: 充电需求增长率±20%%波动未影响最终排序，模型稳定性良好\n');
+else
+    fprintf('结论: 排序存在变化，需关注指标波动对决策的影响\n');
+end
